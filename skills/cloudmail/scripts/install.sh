@@ -1,31 +1,45 @@
 #!/bin/sh
-# Install the cloudmail CLI from the latest GitHub release (macOS and Linux).
+# Install the cloudmail CLI from a GitHub release (macOS and Linux).
 #
 #   sh install.sh
 #
 # Environment:
-#   CLOUDMAIL_VERSION      tag to install, e.g. v0.3.0 (default: latest release)
+#   CLOUDMAIL_VERSION      release tag to install, e.g. v0.3.0, or "latest" to
+#                          reinstall the latest even if cloudmail is already on PATH
+#                          (default: the latest release)
 #   CLOUDMAIL_INSTALL_DIR  where to put the binary (default: ~/.local/bin)
-#   CLOUDMAIL_REPO         owner/repo of the releases (default: tapetide-com/cloudmail)
+#   CLOUDMAIL_REPO         owner/repo of the releases (default: cloudmail-hq/cloudmail)
 #
-# Downloads one binary and SHA256SUMS, refuses to install on a checksum mismatch,
-# and never needs root unless you choose a root-owned directory.
+# Downloads SHA256SUMS and the matching cloudmail_<version>_<os>_<arch>.tar.gz,
+# refuses to install on a checksum mismatch, and never needs root unless you
+# choose a root-owned directory. Needs curl, tar, and sha256sum or shasum.
 set -eu
+# pipefail is POSIX since 2024; older shells (dash < 0.5.12) lack it.
+# shellcheck disable=SC3040
+if (set -o pipefail) 2>/dev/null; then set -o pipefail; fi
 
-repo="${CLOUDMAIL_REPO:-tapetide-com/cloudmail}"
+repo="${CLOUDMAIL_REPO:-cloudmail-hq/cloudmail}"
 dir="${CLOUDMAIL_INSTALL_DIR:-$HOME/.local/bin}"
 version="${CLOUDMAIL_VERSION:-}"
 
 say() { printf '%s\n' "$*" >&2; }
 die() { say "install.sh: $*"; exit 1; }
 
-if command -v cloudmail >/dev/null 2>&1 && [ -z "$version" ]; then
+if [ -z "$version" ] && command -v cloudmail >/dev/null 2>&1; then
 	say "cloudmail is already installed: $(cloudmail --version 2>/dev/null || echo unknown)"
-	say "set CLOUDMAIL_VERSION=vX.Y.Z to install a specific version anyway"
+	say "set CLOUDMAIL_VERSION=latest (or vX.Y.Z) to install anyway"
 	exit 0
 fi
 
 command -v curl >/dev/null 2>&1 || die "curl is required"
+command -v tar >/dev/null 2>&1 || die "tar is required"
+if command -v sha256sum >/dev/null 2>&1; then
+	sha256() { sha256sum "$1" | awk '{ print $1 }'; }
+elif command -v shasum >/dev/null 2>&1; then
+	sha256() { shasum -a 256 "$1" | awk '{ print $1 }'; }
+else
+	die "sha256sum or shasum is required to verify the download"
+fi
 
 case "$(uname -s)" in
 	Darwin) os=darwin ;;
@@ -38,38 +52,50 @@ case "$(uname -m)" in
 	*) die "unsupported architecture $(uname -m); build from source (references/install.md)" ;;
 esac
 
-if [ -z "$version" ]; then
-	# The redirect target of /releases/latest ends in the tag; no API token needed.
-	url=$(curl -fsSLI -o /dev/null -w '%{url_effective}' "https://github.com/$repo/releases/latest") ||
-		die "could not reach https://github.com/$repo/releases"
-	version="${url##*/}"
-	case "$version" in
-		v*) ;;
-		*) die "no published release found at https://github.com/$repo/releases; build from source (references/install.md)" ;;
-	esac
-fi
+case "$version" in
+	"" | latest) base="https://github.com/$repo/releases/latest/download" ;;
+	v[0-9]*) base="https://github.com/$repo/releases/download/$version" ;;
+	*) die "CLOUDMAIL_VERSION must be a tag like v0.3.0, or latest" ;;
+esac
 
-name="cloudmail-$version-$os-$arch"
-base="https://github.com/$repo/releases/download/$version"
 tmp=$(mktemp -d)
-trap 'rm -rf "$tmp"' EXIT INT TERM
+trap 'rm -rf "$tmp"' EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
+
+curl -fsSL --proto '=https' -o "$tmp/SHA256SUMS" "$base/SHA256SUMS" ||
+	die "no SHA256SUMS at $base; refusing to install an unverified binary (or build from source, references/install.md)"
+
+# Take the archive name from SHA256SUMS, so the version in it never has to be
+# guessed. The pattern is strict: the name is used in a URL and a file path.
+# Tolerates CRLF line endings, "*name" (binary mode) and upper-case hex.
+line=$(tr -d '\r' <"$tmp/SHA256SUMS" | awk -v os="$os" -v arch="$arch" '
+	{ f = $2; sub(/^\*/, "", f) }
+	f ~ ("^cloudmail_[0-9A-Za-z.+-]+_" os "_" arch "\\.tar\\.gz$") && $1 ~ /^[0-9A-Fa-f]+$/ && length($1) == 64 {
+		print tolower($1), f; exit
+	}')
+[ -n "$line" ] || die "SHA256SUMS lists no cloudmail_<version>_${os}_${arch}.tar.gz"
+want=${line%% *}
+name=${line#* }
 
 say "downloading $name"
-curl -fsSL -o "$tmp/$name" "$base/$name" || die "no asset $name in release $version"
-curl -fsSL -o "$tmp/SHA256SUMS" "$base/SHA256SUMS" || die "release $version has no SHA256SUMS; refusing to install an unverified binary"
+curl -fsSL --proto '=https' -o "$tmp/$name" "$base/$name" || die "could not download $base/$name"
 
-want=$(awk -v n="$name" '{ f = $2; sub(/^\*/, "", f); if (f == n) print $1 }' "$tmp/SHA256SUMS")
-[ -n "$want" ] || die "SHA256SUMS has no entry for $name"
-if command -v sha256sum >/dev/null 2>&1; then
-	got=$(sha256sum "$tmp/$name" | awk '{print $1}')
-else
-	got=$(shasum -a 256 "$tmp/$name" | awk '{print $1}')
-fi
+got=$(sha256 "$tmp/$name")
 [ "$got" = "$want" ] || die "checksum mismatch for $name (expected $want, got $got); not installed"
 
+mkdir "$tmp/x"
+tar -xzf "$tmp/$name" -C "$tmp/x" || die "could not unpack $name"
+bin="$tmp/x/cloudmail"
+[ -f "$bin" ] || bin=$(find "$tmp/x" -type f -name cloudmail | head -n 1)
+[ -n "$bin" ] && [ -f "$bin" ] || die "$name has no cloudmail binary"
+
 mkdir -p "$dir"
-install -m 0755 "$tmp/$name" "$dir/cloudmail"
-say "installed $dir/cloudmail ($("$dir/cloudmail" --version 2>/dev/null || echo "$version"))"
+# Copy beside the target, then rename, so a running cloudmail is never half-written.
+cp "$bin" "$dir/.cloudmail.new.$$"
+chmod 0755 "$dir/.cloudmail.new.$$"
+mv -f "$dir/.cloudmail.new.$$" "$dir/cloudmail"
+say "installed $dir/cloudmail ($("$dir/cloudmail" --version 2>/dev/null || echo "$name"))"
 
 case ":$PATH:" in
 	*":$dir:"*) ;;

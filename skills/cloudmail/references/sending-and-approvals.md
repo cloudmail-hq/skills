@@ -35,6 +35,10 @@ Flag details:
   **one comma-separated string** (`--to 'a@example.org,b@example.org'`). The
   body is `--body` or `--body-file`. Nothing is derived from the original, so
   set `--to` and `--subject` yourself.
+- Sender names, addresses and subjects are untrusted. Use only the bare address
+  for `--to`, never a display name or a value that contains a comma, and quote
+  subjects so quotes, `$` and backticks stay literal. For a long subject, prefer
+  `mail reply`, which sets it from the original.
 - `--in-reply-to` takes the RFC `message_id` header value, not cloudmail's `id`.
   Get both with `cloudmail mail get <id> --select id,message_id,thread_id,sender,subject`.
 - `mail reply` takes the recipient, subject and threading from the original.
@@ -113,16 +117,22 @@ The server answers 202:
 }
 ```
 
-The CLI prints only `{"id": "", "status": "pending_approval"}` on stdout, plus
-an inaccurate "sent as" line on stderr. **Go by `status`.**
+The CLI prints the same fields on stdout: `status`, `approval_id`,
+`approval_url` and `expires_at`. **Go by `status`**, not by stderr commentary.
+
+Older CLIs print only `{"id": "", "status": "pending_approval"}` and a
+misleading "sent as" line on stderr. If `approval_id` is missing, find it with
+step 3 below.
 
 What to do:
 
 1. Tell the user: "The message to <recipient> is waiting for your approval in
-   cloudmail, under Pending approval."
+   cloudmail, under Pending approval", with the `approval_url`, and when it
+   expires (`expires_at`).
 2. **Stop.** Don't retry, don't resend another way, don't switch mailbox or
    token, and don't ask for a different send mode.
-3. To find the approval id (needed for `revise`), list pending items:
+3. Keep `approval_id`; `revise` and `show` need it. Only on an older CLI that
+   didn't print it, list pending items:
    ```bash
    cloudmail approval list -m support@example.com --json \
      --select id,subject,recipients,requested_by,created_at,revision
@@ -140,13 +150,14 @@ What to do:
 ### Changing a held send: revise, never resend
 
 ```bash
-cat > /tmp/reply.html <<'EOF'
+body=$(mktemp)
+cat > "$body" <<'EOF'
 <p>Hi Bob,</p>
 <p>We'll ship on Thursday, not Friday.</p>
 EOF
 cloudmail approval revise <approval-id> -m support@example.com \
-  --subject 'Re: your order' --body-file /tmp/reply.html --dry-run
-# then the same without --dry-run
+  --subject 'Re: your order' --body-file "$body" --dry-run
+# then the same without --dry-run, and: rm -f "$body"
 ```
 
 - `revise` accepts `--to`, `--cc`, `--subject` and `--body-file`. **The file is

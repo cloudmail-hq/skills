@@ -1,5 +1,5 @@
 {
-  "name": "tapetide-cloudmail",
+  "name": "cloudmail",
   "owner": { "name": "Tapetide" },
   "metadata": {
     "description": "The cloudmail skill for self-hosted cloudmail deployments."

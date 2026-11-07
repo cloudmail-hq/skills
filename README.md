@@ -12,8 +12,8 @@ With the skill installed, an agent can:
 - reply, send and forward when you ask it to;
 - handle held sends correctly: a `pending_approval` result is reported to you,
   not retried, and changed with `approval revise` instead of a second send;
-- run a dedicated **agent inbox** that sends on its own, but only to the
-  recipients you allow;
+- run a dedicated **agent inbox** that sends and receives on its own, held for
+  your approval or not, as you choose;
 - treat every email as untrusted data, never as instructions.
 
 It works through the `cloudmail` CLI or through your deployment's MCP server at
@@ -36,7 +36,7 @@ below loads it from a `skills/` directory.
 ### Any agent, with the `skills` installer
 
 ```bash
-npx skills add tapetide-com/cloudmail-skill
+npx skills add cloudmail-hq/skills
 ```
 
 [`skills`](https://github.com/vercel-labs/skills) detects the agents you have
@@ -47,16 +47,16 @@ and copies the skill into each one's skills folder.
 As a plugin, which also gets updates:
 
 ```text
-/plugin marketplace add tapetide-com/cloudmail-skill
-/plugin install cloudmail@tapetide-cloudmail
+/plugin marketplace add cloudmail-hq/skills
+/plugin install cloudmail@cloudmail
 ```
 
 Or copy the folder by hand:
 
 ```bash
-git clone https://github.com/tapetide-com/cloudmail-skill.git
+git clone https://github.com/cloudmail-hq/skills.git cloudmail-skills
 mkdir -p ~/.claude/skills
-cp -R cloudmail-skill/skills/cloudmail ~/.claude/skills/
+cp -R cloudmail-skills/skills/cloudmail ~/.claude/skills/
 ```
 
 Use `.claude/skills/` inside a project to share it with your team.
@@ -67,7 +67,7 @@ All of these read `~/.agents/skills/` (user) and `.agents/skills/` (project):
 
 ```bash
 mkdir -p ~/.agents/skills
-cp -R cloudmail-skill/skills/cloudmail ~/.agents/skills/
+cp -R cloudmail-skills/skills/cloudmail ~/.agents/skills/
 ```
 
 Each tool also has its own folder, if you prefer it:
@@ -80,7 +80,7 @@ Each tool also has its own folder, if you prefer it:
 | GitHub Copilot | `~/.copilot/skills` | `.github/skills` |
 
 Gemini CLI can also install it directly:
-`gemini skills install https://github.com/tapetide-com/cloudmail-skill --path skills/cloudmail`.
+`gemini skills install https://github.com/cloudmail-hq/skills --path skills/cloudmail`.
 
 ### Other agents
 
@@ -111,8 +111,10 @@ Ask your agent:
   agent tells you the reply is waiting in Pending approval.
 - "Change the held reply to say Thursday instead." The agent runs
   `approval revise`.
-- "Create an agent inbox that can email @partner.example.org for 3 days, ask
-  them for a quote, and tell me when they answer."
+- "Create an agent inbox for 3 days, ask quotes@partner.example.org for a
+  quote, and tell me when they answer." The agent gives you the command to run
+  (it prints the new inbox's token). It can mail anyone unless you ask it to
+  limit recipients.
 
 ## Safety model
 
@@ -122,7 +124,8 @@ real limits are enforced by your deployment, not by the skill:
 - Token scopes and per-mailbox grants cap what a token can do.
 - Agent sends from a person's mailbox are held for approval by default.
 - An agent cannot approve its own sends.
-- Agent inboxes can only send to their `allowed_recipients`.
+- Agent inboxes can send to anyone by default. If you created one with
+  `--allow`, it can only send to those recipients.
 
 ## Contents
 

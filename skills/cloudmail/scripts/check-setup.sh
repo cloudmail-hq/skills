@@ -8,16 +8,19 @@
 # Exit 0 when everything is ready. Otherwise: 127 CLI missing, 2 no deployment
 # configured, 6 no token or token rejected, 8 deployment unreachable, or the
 # exit code of `auth whoami`.
-set -u
+set -eu
+# pipefail is POSIX since 2024; older shells (dash < 0.5.12) lack it.
+# shellcheck disable=SC3040
+if (set -o pipefail) 2>/dev/null; then set -o pipefail; fi
 
 say() { printf '%s\n' "$*" >&2; }
 # field NAME: the value of "NAME": ... in the JSON on stdin (string, bool or
 # number). Uses jq when installed; otherwise a whitespace-tolerant sed.
 field() {
 	if command -v jq >/dev/null 2>&1; then
-		jq -r --arg k "$1" '.[$k] // empty | tostring' 2>/dev/null
+		jq -r --arg k "$1" '.[$k] // empty | tostring' 2>/dev/null || true
 	else
-		tr ',' '\n' | sed -n "s/^[[:space:]{]*\"$1\"[[:space:]]*:[[:space:]]*\"\{0,1\}\([^\"}]*\)\"\{0,1\}[[:space:]}]*$/\1/p" | head -n 1
+		tr ',' '\n' | sed -n "s/^[[:space:]{]*\"$1\"[[:space:]]*:[[:space:]]*\"\{0,1\}\([^\"}]*\)\"\{0,1\}[[:space:]}]*$/\1/p" | head -n 1 || true
 	fi
 }
 
@@ -26,11 +29,11 @@ if ! command -v cloudmail >/dev/null 2>&1; then
 	say "     Install it: references/install.md, or sh scripts/install.sh"
 	exit 127
 fi
-say "ok   $(cloudmail --version 2>/dev/null)"
+say "ok   $(cloudmail --version 2>/dev/null || echo 'version unknown')"
 
 # auth status reports configuration and reachability as JSON. It exits non-zero
 # when the deployment cannot be reached, so read its fields, not its exit code.
-status=$(cloudmail --read-only --output json "$@" auth status 2>/dev/null)
+status=$(cloudmail --read-only --output json "$@" auth status 2>/dev/null) || true
 if [ -z "$status" ]; then
 	say "FAIL could not read \`cloudmail auth status\`; run it by hand to see why."
 	exit 1
@@ -65,8 +68,11 @@ if [ "$reachable" != "true" ]; then
 	exit 8
 fi
 
-out=$(cloudmail --read-only --output json "$@" auth whoami 2>&1)
-code=$?
+# Keep stdout (the JSON) and stderr (the error envelope) apart.
+errf=$(mktemp)
+trap 'rm -f "$errf"' EXIT
+code=0
+out=$(cloudmail --read-only --output json "$@" auth whoami 2>"$errf") || code=$?
 case $code in
 	0) say "ok   authenticated"; printf '%s\n' "$out"; exit 0 ;;
 	6) say "FAIL the deployment rejected the token (401): missing, revoked, expired, or for another deployment." ;;
@@ -74,5 +80,5 @@ case $code in
 	8) say "FAIL cannot reach $base: check the address and the network." ;;
 	*) say "FAIL auth whoami exited $code." ;;
 esac
-printf '%s\n' "$out" >&2
+cat "$errf" >&2
 exit "$code"

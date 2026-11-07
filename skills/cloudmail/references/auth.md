@@ -84,7 +84,7 @@ cloudmail token create assistant --scope mail:read,mail:draft,mail:send \
   --mailbox support@example.com --expires-in 30
 ```
 
-`token create` prints the secret once, to stdout. If you ran it, the secret would
+`--expires-in` is in days (`0` for never). `token create` prints the secret once, to stdout. If you ran it, the secret would
 land in your transcript, so give the user the command to run in their own
 terminal, or have them create the token in the web app.
 

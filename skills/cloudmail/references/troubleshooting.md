@@ -13,7 +13,7 @@ contract.
 | 3 | not_found | No such message, mailbox or approval | List the collection to find a valid id. Check `-m`. |
 | 4 | denied | Authenticated, but lacking a capability or scope | Don't retry. Tell the user which capability or scope is missing. |
 | 5 | conflict | Exists already, or state changed | Read it again, then decide. `APPROVAL_REVISED`, `IDEMPOTENCY_KEY_REUSED` and `IDEMPOTENCY_IN_PROGRESS` live here. |
-| 6 | unauthenticated | No usable credential | Check `cloudmail auth status`; the API token may be missing, revoked or expired. (The CLI's own schema text mentions "an Access service token"; that applies only to legacy Access deployments.) |
+| 6 | unauthenticated | No usable credential | Check `cloudmail auth status`; the API token may be missing, revoked or expired. (Older CLIs' text mentions "an Access service token"; that applies only to legacy Access deployments.) |
 | 7 | rate_limited | Too many requests, or send quota | Wait `retry_after_seconds`. For `SEND_QUOTA`, tell the user. |
 | 8 | network | Never reached the server | Check the base URL and connectivity, then retry. |
 | 9 | server | 5xx (`SERVER_ERROR`, `SERVER_UNAVAILABLE`) | Retry, but a send only with the same `--idempotency-key`. |
@@ -77,8 +77,9 @@ a person. Don't treat it as a failure, don't retry, and don't send another way.
 Tell the user. To change it, use `cloudmail approval revise <approval-id>`.
 See [sending-and-approvals.md](sending-and-approvals.md).
 
-The CLI's stderr says "sent as" with an empty id even for a held send. Trust the
-`status` field on stdout.
+The JSON on stdout carries `approval_id`, `approval_url` and `expires_at`. Older
+CLIs print only `status`, with a misleading "sent as" line on stderr; trust
+`status`.
 
 ## Common situations
 

@@ -20,67 +20,95 @@ Ask the user before installing software on their machine.
 
 ## 2. Release binary (recommended)
 
-Release binaries are published at
-<https://github.com/tapetide-com/cloudmail/releases> for:
+Releases are published at <https://github.com/cloudmail-hq/cloudmail/releases>
+for:
 
 | OS | amd64 | arm64 |
 |---|---|---|
 | macOS (darwin) | yes | yes |
 | Linux | yes | yes |
-| Windows | yes | not yet |
+| Windows | yes | yes |
 
-Each release asset is a single binary named
-`cloudmail-<version>-<os>-<arch>` (with `.exe` on Windows), plus a
-`SHA256SUMS` file listing their checksums.
+Each release has one archive per platform, named
+`cloudmail_<version>_<os>_<arch>.tar.gz` (`.zip` on Windows), and a
+`SHA256SUMS` file listing their checksums. `<version>` has no leading `v`, for
+example `cloudmail_0.3.0_linux_amd64.tar.gz`.
 
 ### macOS and Linux
 
-The bundled script picks the OS and architecture, downloads the latest release,
-checks it against `SHA256SUMS`, and installs to `~/.local/bin` (override with
-`CLOUDMAIL_INSTALL_DIR`):
+The bundled script picks the OS and architecture, downloads the latest release
+and `SHA256SUMS`, refuses to install on a checksum mismatch, and installs to
+`~/.local/bin` without `sudo` (override with `CLOUDMAIL_INSTALL_DIR`):
 
 ```bash
 sh scripts/install.sh            # from this skill's folder
 ```
 
 Or, without the skill checkout, fetch the script from a tagged release of this
-skill. Read it before running it:
+skill into a private temporary folder. Read it before running it:
 
 ```bash
-curl -fsSLo /tmp/cloudmail-install.sh \
-  https://raw.githubusercontent.com/tapetide-com/cloudmail-skill/v0.1.0/skills/cloudmail/scripts/install.sh
-sh /tmp/cloudmail-install.sh
+d=$(mktemp -d)
+curl -fsSLo "$d/install.sh" \
+  https://raw.githubusercontent.com/cloudmail-hq/skills/v0.1.0/skills/cloudmail/scripts/install.sh
+less "$d/install.sh"
+sh "$d/install.sh"; rm -rf "$d"
 ```
 
-To pin a version, set `CLOUDMAIL_VERSION=v0.3.0` before running it.
+To pin a version, set `CLOUDMAIL_VERSION=v0.3.0`. To reinstall when
+`cloudmail` is already on `PATH`, set `CLOUDMAIL_VERSION=latest`.
 
 If `~/.local/bin` is not on `PATH`, add it, for example
 `export PATH="$HOME/.local/bin:$PATH"` in `~/.zshrc` or `~/.bashrc`.
 
 ### Windows (PowerShell)
 
+Works in Windows PowerShell 5.1 and PowerShell 7. It installs to
+`%LOCALAPPDATA%\cloudmail` without administrator rights; change `$dir` to put
+it elsewhere.
+
 ```powershell
-$repo = "tapetide-com/cloudmail"
-$tag  = (Invoke-RestMethod "https://api.github.com/repos/$repo/releases/latest").tag_name
-$arch = if ($env:PROCESSOR_ARCHITECTURE -eq "ARM64") { "arm64" } else { "amd64" }
-$name = "cloudmail-$tag-windows-$arch.exe"
-$base = "https://github.com/$repo/releases/download/$tag"
-$dir  = "$env:LOCALAPPDATA\cloudmail"; New-Item -ItemType Directory -Force $dir | Out-Null
-Invoke-WebRequest "$base/$name" -OutFile "$dir\cloudmail.exe"
-$want = ((Invoke-WebRequest "$base/SHA256SUMS").Content -split "`n" | Where-Object { $_ -match [regex]::Escape($name) }) -split '\s+' | Select-Object -First 1
-$got  = (Get-FileHash "$dir\cloudmail.exe" -Algorithm SHA256).Hash.ToLower()
-if ($got -ne $want) { Remove-Item "$dir\cloudmail.exe"; throw "checksum mismatch for $name" }
-"Installed $dir\cloudmail.exe; add $dir to PATH"
+$ErrorActionPreference = "Stop"
+$base = "https://github.com/cloudmail-hq/cloudmail/releases/latest/download"
+$cpu  = if ($env:PROCESSOR_ARCHITEW6432) { $env:PROCESSOR_ARCHITEW6432 } else { $env:PROCESSOR_ARCHITECTURE }
+$arch = if ($cpu -eq "ARM64") { "arm64" } else { "amd64" }
+$dir  = Join-Path $env:LOCALAPPDATA "cloudmail"
+$tmp  = Join-Path ([IO.Path]::GetTempPath()) ([IO.Path]::GetRandomFileName())
+New-Item -ItemType Directory -Force $tmp, $dir | Out-Null
+try {
+  Invoke-WebRequest -UseBasicParsing "$base/SHA256SUMS" -OutFile "$tmp\SHA256SUMS"
+  $line = Get-Content "$tmp\SHA256SUMS" |
+    Where-Object { $_ -match "^([0-9A-Fa-f]{64}) [ *](cloudmail_[0-9A-Za-z.+-]+_windows_${arch}\.zip)\s*$" } |
+    Select-Object -First 1
+  if (-not $line) { throw "SHA256SUMS lists no windows_$arch archive" }
+  $null = $line -match "^([0-9A-Fa-f]{64}) [ *](\S+)"
+  $want = $Matches[1].ToLower(); $name = $Matches[2]
+  Invoke-WebRequest -UseBasicParsing "$base/$name" -OutFile "$tmp\$name"
+  $got = (Get-FileHash "$tmp\$name" -Algorithm SHA256).Hash.ToLower()
+  if ($got -ne $want) { throw "checksum mismatch for $name; not installed" }
+  Expand-Archive "$tmp\$name" -DestinationPath "$tmp\x"
+  $exe = Get-ChildItem "$tmp\x" -Recurse -Filter cloudmail.exe | Select-Object -First 1
+  if (-not $exe) { throw "$name has no cloudmail.exe" }
+  Copy-Item $exe.FullName "$dir\cloudmail.exe" -Force
+  "Installed $dir\cloudmail.exe"
+} finally {
+  Remove-Item -Recurse -Force $tmp -ErrorAction SilentlyContinue
+}
 ```
 
-Windows on ARM can run the amd64 build under emulation until an arm64 build is
-published.
+If `cloudmail` is not found afterwards, add `$dir` to the user `PATH`
+(**Settings → System → About → Advanced system settings → Environment
+Variables**), then open a new terminal.
 
 ### Checking a download by hand
 
 ```bash
-shasum -a 256 cloudmail-v0.3.0-darwin-arm64     # macOS
-sha256sum cloudmail-v0.3.0-linux-amd64          # Linux
+shasum -a 256 cloudmail_0.3.0_darwin_arm64.tar.gz     # macOS
+sha256sum cloudmail_0.3.0_linux_amd64.tar.gz          # Linux
+```
+
+```powershell
+(Get-FileHash cloudmail_0.3.0_windows_amd64.zip -Algorithm SHA256).Hash   # Windows
 ```
 
 Compare the result with the matching line in the release's `SHA256SUMS`. If
@@ -89,21 +117,21 @@ they differ, delete the file and do not run it.
 ## 3. Build from source
 
 Use this when no release fits, or when the user prefers to build. It needs Go
-1.27 or later and git. The CLI lives in the `cli/` folder of the cloudmail
+1.27 or later, git and make. The CLI is the Go module
+`github.com/cloudmail-hq/cloudmail/cli`, in the `cli/` folder of the cloudmail
 repository:
 
 ```bash
-git clone https://github.com/tapetide-com/cloudmail.git
+git clone https://github.com/cloudmail-hq/cloudmail.git
 cd cloudmail/cli
 make build                      # writes ./bin/cloudmail, stamped with the version
-install -m 0755 bin/cloudmail ~/.local/bin/cloudmail
+mkdir -p ~/.local/bin
+cp bin/cloudmail ~/.local/bin/cloudmail
 ```
 
-`make install` installs to `/usr/local/bin` instead (`PREFIX=` changes it).
-A plain `go build -o cloudmail .` inside `cli/` also works.
-
-`go install …@latest` is not supported: the module is not published at a
-public Go import path.
+`make install` installs to `/usr/local/bin` instead, which usually needs
+`sudo`; `make install PREFIX=$HOME/.local` avoids that. A plain
+`go build -o cloudmail .` inside `cli/` also works, without the version stamp.
 
 ## 4. npm (planned)
 
