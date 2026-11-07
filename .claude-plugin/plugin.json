@@ -1,0 +1,10 @@
+{
+  "name": "cloudmail",
+  "description": "Work with your own self-hosted cloudmail deployment: read, search, triage, draft, reply and send mail through the cloudmail CLI or MCP, with held sends (pending_approval) and agent inboxes handled safely.",
+  "version": "0.1.0",
+  "author": { "name": "Tapetide" },
+  "homepage": "https://github.com/tapetide-com/cloudmail-skill",
+  "repository": "https://github.com/tapetide-com/cloudmail-skill",
+  "license": "Apache-2.0",
+  "keywords": ["email", "inbox", "mail", "cloudmail", "mcp", "agent-inbox", "approval", "cloudflare"]
+}

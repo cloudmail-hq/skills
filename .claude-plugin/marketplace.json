@@ -1,0 +1,16 @@
+{
+  "name": "tapetide-cloudmail",
+  "owner": { "name": "Tapetide" },
+  "metadata": {
+    "description": "The cloudmail skill for self-hosted cloudmail deployments."
+  },
+  "plugins": [
+    {
+      "name": "cloudmail",
+      "source": "./",
+      "description": "Read, search, draft, reply and send mail in your own cloudmail deployment, with approval-safe sending.",
+      "category": "productivity",
+      "license": "Apache-2.0"
+    }
+  ]
+}
