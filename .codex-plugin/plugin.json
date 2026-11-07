@@ -1,0 +1,30 @@
+{
+  "name": "cloudmail",
+  "version": "0.1.0",
+  "description": "Work with your own self-hosted cloudmail deployment: read, search, triage, draft, reply and send mail through the cloudmail CLI or MCP, with held sends (pending_approval) handled safely.",
+  "author": {
+    "name": "Tapetide",
+    "url": "https://github.com/cloudmail-hq"
+  },
+  "homepage": "https://github.com/cloudmail-hq/skills",
+  "repository": "https://github.com/cloudmail-hq/skills",
+  "license": "Apache-2.0",
+  "keywords": ["email", "inbox", "mail", "cloudmail", "mcp", "agent-inbox", "approval", "cloudflare"],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "cloudmail",
+    "shortDescription": "Mail in your self-hosted cloudmail",
+    "longDescription": "Read, search and triage mail in your own cloudmail deployment, draft replies, and send when you ask. Sends held for approval are reported, not retried. Works through the cloudmail CLI or your deployment's MCP server at https://<your-domain>/mcp.",
+    "developerName": "Tapetide",
+    "category": "Communication",
+    "capabilities": ["Interactive", "Read", "Write"],
+    "websiteURL": "https://github.com/cloudmail-hq/cloudmail",
+    "defaultPrompt": [
+      "What's unread in my inbox? Group it by what needs a reply.",
+      "Draft a reply to the last email from Bob. Don't send it.",
+      "Find last month's invoice from Acme across my mailboxes."
+    ],
+    "composerIcon": "./.claude-plugin/icon.png",
+    "logo": "./.claude-plugin/icon.png"
+  }
+}

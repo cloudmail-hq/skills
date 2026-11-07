@@ -1,0 +1,27 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.cloudmail-hq/cloudmail",
+  "title": "cloudmail",
+  "description": "Read, search, draft and send mail in your self-hosted cloudmail deployment, with held-send approval.",
+  "version": "0.1.0",
+  "websiteUrl": "https://github.com/cloudmail-hq/cloudmail",
+  "repository": {
+    "url": "https://github.com/cloudmail-hq/cloudmail",
+    "source": "github",
+    "id": "1449430214"
+  },
+  "remotes": [
+    {
+      "type": "streamable-http",
+      "url": "https://{domain}/mcp",
+      "variables": {
+        "domain": {
+          "description": "Host name of your cloudmail deployment, without https:// (for example mail.example.com).",
+          "isRequired": true,
+          "format": "string",
+          "placeholder": "mail.example.com"
+        }
+      }
+    }
+  ]
+}

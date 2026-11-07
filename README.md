@@ -19,6 +19,27 @@ With the skill installed, an agent can:
 It works through the `cloudmail` CLI or through your deployment's MCP server at
 `https://<your-domain>/mcp`.
 
+## Install
+
+[![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
+[![Release](https://img.shields.io/github/v/release/cloudmail-hq/skills)](https://github.com/cloudmail-hq/skills/releases)
+
+Claude Code:
+
+```text
+/plugin marketplace add cloudmail-hq/skills
+/plugin install cloudmail@cloudmail
+```
+
+Any agent ([`skills`](https://github.com/vercel-labs/skills) installer):
+
+```bash
+npx skills add cloudmail-hq/skills
+```
+
+More options, including Codex, Cursor and manual copies, are in
+[Install the skill](#install-the-skill).
+
 ## What you need
 
 - A cloudmail deployment, for example `https://mail.example.com`.
@@ -139,6 +160,8 @@ skills/cloudmail/
     install.sh                    installs the CLI from a release, checksum-verified
     check-setup.sh                read-only setup check
 .claude-plugin/                   Claude Code plugin and marketplace manifests
+.codex-plugin/                    Codex plugin manifest
+server.json                       MCP Registry entry for https://<your-domain>/mcp
 ```
 
 ## Licence
